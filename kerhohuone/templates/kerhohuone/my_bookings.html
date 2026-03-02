@@ -1,0 +1,84 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}My Bookings{% endblock %}
+
+{% block content %}
+<h1>My Bookings</h1>
+
+<p class="text-muted">Active upcoming bookings: <strong>{{ active_count }}</strong> / 4</p>
+
+<div class="flex-gap mb-2">
+    <a href="{% url 'kerhohuone:book' %}" class="btn btn-primary">New Booking</a>
+    <a href="{% url 'kerhohuone:calendar' %}" class="btn btn-outline">Calendar</a>
+</div>
+
+{% if bookings %}
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Time</th>
+            <th>Cost</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for booking in bookings %}
+        <tr>
+            <td>{{ booking.pk }}</td>
+            <td>{{ booking.date|date:"D, M j, Y" }}</td>
+            <td>
+                {% if booking.booking_type == "full_day" %}
+                    <span class="badge badge-warning">Full Day</span>
+                {% else %}
+                    <span class="badge badge-success">Slot</span>
+                {% endif %}
+            </td>
+            <td>{{ booking.slot_label }}</td>
+            <td class="price-tag">€{{ booking.total_cost }}</td>
+            <td>
+                {% if booking.is_cancelled %}
+                    <span class="badge badge-danger">Cancelled</span>
+                {% elif booking.is_past %}
+                    <span class="badge badge-warning">Past</span>
+                {% else %}
+                    <span class="badge badge-success">Active</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{% url 'kerhohuone:booking_detail' booking.pk %}" class="btn btn-sm btn-outline">View</a>
+                {% if booking.can_cancel %}
+                <form method="post" action="{% url 'kerhohuone:booking_cancel' booking.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger"
+                            onclick="return confirm('Cancel this booking?');">Cancel</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<div class="flex-gap mt-2" style="justify-content: center;">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-sm btn-outline">← Previous</a>
+    {% endif %}
+    <span class="text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-sm btn-outline">Next →</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <p class="text-center text-muted">No bookings yet. <a href="{% url 'kerhohuone:book' %}">Make your first booking!</a></p>
+</div>
+{% endif %}
+{% endblock %}

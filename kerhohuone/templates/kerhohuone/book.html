@@ -1,0 +1,124 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}Book Clubhouse{% endblock %}
+
+{% block content %}
+<h1>Book the Clubhouse</h1>
+
+<div style="max-width: 600px;">
+    {% if form.non_field_errors %}
+    <div class="card" style="border-color: var(--danger);">
+        {% for error in form.non_field_errors %}
+        <p style="color: var(--danger); font-weight: 600;">{{ error }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Pricing info -->
+    <div class="card mb-2">
+        <div class="card-header">💰 Slot Prices</div>
+        <table>
+            <thead><tr><th>Slot</th><th>Time</th><th>Price</th></tr></thead>
+            <tbody>
+                {% for slot_num, label in slot_choices %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ label }}</td>
+                    <td class="price-tag" id="price-slot-{{ slot_num }}">€{{ slot_prices|dictsortreversed:"0" }}{% for k, v in slot_prices.items %}{% if k == slot_num %}{{ v }}{% endif %}{% endfor %}</td>
+                </tr>
+                {% endfor %}
+                <tr style="font-weight:700; border-top: 2px solid var(--border);">
+                    <td colspan="2">Full Day</td>
+                    <td class="price-tag">€{{ full_day_price }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_date">Date</label>
+            <input type="date" name="date" id="id_date"
+                   value="{{ form.date.value|default:'' }}"
+                   min="{{ form.fields.date.widget.attrs.min }}"
+                   max="{{ form.fields.date.widget.attrs.max }}"
+                   required>
+            {% if form.date.errors %}<ul class="errorlist">{% for e in form.date.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+
+        <div class="form-group">
+            <label>Booking Type</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="booking_type" value="slot"
+                           {% if form.booking_type.value == "slot" or not form.booking_type.value %}checked{% endif %}>
+                    Single Slot (3 hours)
+                </label>
+                <label>
+                    <input type="radio" name="booking_type" value="full_day"
+                           {% if form.booking_type.value == "full_day" %}checked{% endif %}>
+                    Full Day (07:00 – 22:00)
+                </label>
+            </div>
+            {% if form.booking_type.errors %}<ul class="errorlist">{% for e in form.booking_type.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+
+        <div class="form-group" id="slot-selection">
+            <label for="id_slot_number">Time Slot</label>
+            <select name="slot_number" id="id_slot_number">
+                <option value="">— Select a slot —</option>
+                {% for slot_num, label in slot_choices %}
+                <option value="{{ slot_num }}"
+                        {% if form.slot_number.value|stringformat:"s" == slot_num|stringformat:"s" %}selected{% endif %}>
+                    {{ label }} — €{% for k, v in slot_prices.items %}{% if k == slot_num %}{{ v }}{% endif %}{% endfor %}
+                </option>
+                {% endfor %}
+            </select>
+            {% if form.slot_number.errors %}<ul class="errorlist">{% for e in form.slot_number.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+
+        <div class="card mt-1 mb-2" id="cost-display">
+            <div class="card-header">Total Cost</div>
+            <p class="price-tag" id="total-cost" style="font-size:1.5rem;">€0.00</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;">Confirm Booking</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const slotPrices = {{ slot_prices|safe }};
+    const fullDayPrice = {{ full_day_price }};
+    const typeRadios = document.querySelectorAll('input[name="booking_type"]');
+    const slotSelect = document.getElementById('id_slot_number');
+    const slotGroup = document.getElementById('slot-selection');
+    const totalCost = document.getElementById('total-cost');
+
+    function updateUI() {
+        const type = document.querySelector('input[name="booking_type"]:checked').value;
+        if (type === 'full_day') {
+            slotGroup.style.display = 'none';
+            totalCost.textContent = '€' + parseFloat(fullDayPrice).toFixed(2);
+        } else {
+            slotGroup.style.display = '';
+            const slot = slotSelect.value;
+            if (slot !== '') {
+                const price = slotPrices[slot] || '0.00';
+                totalCost.textContent = '€' + parseFloat(price).toFixed(2);
+            } else {
+                totalCost.textContent = '€0.00';
+            }
+        }
+    }
+
+    typeRadios.forEach(r => r.addEventListener('change', updateUI));
+    slotSelect.addEventListener('change', updateUI);
+    updateUI();
+})();
+</script>
+{% endblock %}

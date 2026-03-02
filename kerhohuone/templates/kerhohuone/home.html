@@ -1,0 +1,42 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="text-center mt-3">
+    <h1>Welcome to Kerhohuone</h1>
+    <p>Book the clubhouse for your events, meetings, or gatherings.</p>
+    <p class="text-muted">Available every day from 07:00 to 22:00 – book up to 6 months in advance.</p>
+
+    <div class="flex-gap mt-2" style="justify-content: center;">
+        {% if user.is_authenticated %}
+            <a href="{% url 'kerhohuone:calendar' %}" class="btn btn-primary">Browse Calendar</a>
+            <a href="{% url 'kerhohuone:book' %}" class="btn btn-outline">Make a Booking</a>
+        {% else %}
+            <a href="{% url 'kerhohuone:login' %}" class="btn btn-primary">Login</a>
+            <a href="{% url 'kerhohuone:signup' %}" class="btn btn-outline">Create Account</a>
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <div class="card" style="max-width: 500px; margin: 0 auto;">
+            <div class="card-header">⏰ Daily Time Slots</div>
+            <table>
+                <thead>
+                    <tr><th>Slot</th><th>Time</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>1</td><td>07:00 – 10:00</td></tr>
+                    <tr><td>2</td><td>10:00 – 13:00</td></tr>
+                    <tr><td>3</td><td>13:00 – 16:00</td></tr>
+                    <tr><td>4</td><td>16:00 – 19:00</td></tr>
+                    <tr><td>5</td><td>19:00 – 22:00</td></tr>
+                </tbody>
+            </table>
+            <p class="text-muted" style="font-size:.9rem;">
+                You can book individual 3-hour slots or a full day. Maximum 4 active bookings per account.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

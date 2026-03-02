@@ -1,0 +1,64 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1>Welcome back, {{ user.get_full_name|default:user.username }}!</h1>
+
+{% if user.profile %}
+<p class="text-muted">Apartment: <strong>{{ user.profile.apartment_number }}</strong></p>
+{% endif %}
+
+<div class="flex-gap mt-2 mb-2">
+    <a href="{% url 'kerhohuone:calendar' %}" class="btn btn-primary">Browse Calendar</a>
+    <a href="{% url 'kerhohuone:book' %}" class="btn btn-outline">New Booking</a>
+    <a href="{% url 'kerhohuone:my_bookings' %}" class="btn btn-outline">All My Bookings</a>
+</div>
+
+{% if active_bookings %}
+<div class="card">
+    <div class="card-header">📅 Your Upcoming Bookings ({{ active_count }})</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Time</th>
+                <th>Cost</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for booking in active_bookings %}
+            <tr>
+                <td>{{ booking.date|date:"D, M j, Y" }}</td>
+                <td>
+                    {% if booking.booking_type == "full_day" %}
+                        <span class="badge badge-warning">Full Day</span>
+                    {% else %}
+                        <span class="badge badge-success">Slot</span>
+                    {% endif %}
+                </td>
+                <td>{{ booking.slot_label }}</td>
+                <td class="price-tag">€{{ booking.total_cost }}</td>
+                <td>
+                    <a href="{% url 'kerhohuone:booking_detail' booking.pk %}" class="btn btn-sm btn-outline">View</a>
+                    {% if booking.can_cancel %}
+                    <form method="post" action="{% url 'kerhohuone:booking_cancel' booking.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger"
+                                onclick="return confirm('Cancel this booking?');">Cancel</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <p class="text-center text-muted">You have no upcoming bookings. <a href="{% url 'kerhohuone:book' %}">Book the clubhouse now!</a></p>
+</div>
+{% endif %}
+{% endblock %}

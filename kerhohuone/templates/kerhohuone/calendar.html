@@ -1,0 +1,91 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}Calendar – {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<h1>Calendar – {{ month_name }} {{ year }}</h1>
+
+<!-- Navigation -->
+<div class="calendar-nav">
+    {% if can_go_prev %}
+    <a href="{% url 'kerhohuone:calendar_month' prev_year prev_month %}" class="btn btn-outline btn-sm">← Previous</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+
+    <strong>{{ month_name }} {{ year }}</strong>
+
+    {% if can_go_next %}
+    <a href="{% url 'kerhohuone:calendar_month' next_year next_month %}" class="btn btn-outline btn-sm">Next →</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+</div>
+
+<!-- Legend -->
+<div class="flex-gap mb-2" style="font-size:.85rem;">
+    <span><span class="slot-indicator slot-available">■</span> Available</span>
+    <span><span class="slot-indicator slot-booked">■</span> Booked</span>
+    <span>Full day price: <strong class="price-tag">€{{ full_day_price }}</strong></span>
+</div>
+
+<!-- Pricing reference -->
+<details class="mb-2">
+    <summary style="cursor:pointer; font-weight:600;">View Slot Prices</summary>
+    <div class="card mt-1">
+        <table>
+            <thead><tr><th>Slot</th><th>Time</th><th>Price</th></tr></thead>
+            <tbody>
+                {% for slot_num, label in slot_choices %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ label }}</td>
+                    <td class="price-tag">€{{ slot_prices|dictsort:"0" }}{% for k, v in slot_prices.items %}{% if k == slot_num %}{{ v }}{% endif %}{% endfor %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<!-- Calendar grid -->
+<table class="calendar-table">
+    <thead>
+        <tr>
+            <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for week in weeks %}
+        <tr>
+            {% for day in week %}
+            <td>
+                {% if day %}
+                <div class="day-cell {% if day.is_past %}past{% endif %} {% if day.is_today %}today{% endif %} {% if day.is_beyond %}beyond{% endif %}">
+                    <div class="day-number">{{ day.day }}</div>
+                    {% if not day.is_past and not day.is_beyond %}
+                        {% if day.all_booked %}
+                            <span class="slot-indicator slot-booked">Full</span>
+                        {% else %}
+                            {% for slot in day.slots %}
+                                {% if slot.booked %}
+                                    <span class="slot-indicator slot-booked" title="{{ slot.label }} – Booked">✗</span>
+                                {% else %}
+                                    <a href="{% url 'kerhohuone:book_date' day.date_iso %}?slot={{ slot.number }}"
+                                       class="slot-indicator slot-available"
+                                       title="{{ slot.label }} – €{{ slot.price }}">
+                                        €{{ slot.price }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

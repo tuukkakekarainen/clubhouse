@@ -1,0 +1,45 @@
+{% extends "kerhohuone/base.html" %}
+
+{% block title %}Booking #{{ booking.pk }}{% endblock %}
+
+{% block content %}
+<h1>Booking Details</h1>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-header">
+        Booking #{{ booking.pk }}
+        {% if booking.is_cancelled %}
+            <span class="badge badge-danger">Cancelled</span>
+        {% elif booking.is_past %}
+            <span class="badge badge-warning">Past</span>
+        {% else %}
+            <span class="badge badge-success">Active</span>
+        {% endif %}
+    </div>
+
+    <table>
+        <tr><th>Date</th><td>{{ booking.date|date:"l, F j, Y" }}</td></tr>
+        <tr><th>Type</th><td>{{ booking.get_booking_type_display }}</td></tr>
+        <tr><th>Time</th><td>{{ booking.slot_label }}</td></tr>
+        <tr><th>Total Cost</th><td class="price-tag">€{{ booking.total_cost }}</td></tr>
+        <tr><th>Booked by</th><td>{{ booking.user.get_full_name|default:booking.user.username }}</td></tr>
+        <tr><th>Created</th><td>{{ booking.created_at|date:"M j, Y H:i" }}</td></tr>
+        {% if booking.is_cancelled %}
+        <tr><th>Status</th><td style="color: var(--danger); font-weight:700;">Cancelled</td></tr>
+        {% endif %}
+    </table>
+
+    <div class="flex-gap mt-2">
+        {% if booking.can_cancel %}
+        <form method="post" action="{% url 'kerhohuone:booking_cancel' booking.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger"
+                    onclick="return confirm('Are you sure you want to cancel this booking?');">
+                Cancel Booking
+            </button>
+        </form>
+        {% endif %}
+        <a href="{% url 'kerhohuone:my_bookings' %}" class="btn btn-outline">Back to My Bookings</a>
+    </div>
+</div>
+{% endblock %}
