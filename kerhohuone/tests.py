@@ -16,14 +16,12 @@ from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
-from django.test import Client, TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 
 from .forms import BookingForm, SignUpForm
 from .models import (
     ADVANCE_BOOKING_MONTHS,
-    CANCELLATION_DEADLINE_HOURS,
     DEFAULT_SLOT_PRICE,
     MAX_ACTIVE_BOOKINGS_PER_USER,
     SLOT_COUNT,
@@ -37,12 +35,20 @@ from .models import (
 #  Helper mixin
 # ---------------------------------------------------------------------------
 
+
 class TestHelperMixin:
     """Shared helpers for creating test users and bookings."""
 
-    def create_user(self, username="testuser", password="Str0ng!Pass99",
-                    apartment="A12", first_name="Test", last_name="User",
-                    email="test@example.com", is_staff=False):
+    def create_user(
+        self,
+        username="testuser",
+        password="Str0ng!Pass99",
+        apartment="A12",
+        first_name="Test",
+        last_name="User",
+        email="test@example.com",
+        is_staff=False,
+    ):
         user = User.objects.create_user(
             username=username,
             password=password,
@@ -54,8 +60,14 @@ class TestHelperMixin:
         UserProfile.objects.create(user=user, apartment_number=apartment)
         return user
 
-    def create_booking(self, user, booking_date=None, booking_type="slot",
-                       slot_number=0, is_cancelled=False):
+    def create_booking(
+        self,
+        user,
+        booking_date=None,
+        booking_type="slot",
+        slot_number=0,
+        is_cancelled=False,
+    ):
         if booking_date is None:
             booking_date = date.today() + timedelta(days=7)
         booking = Booking(
@@ -72,6 +84,7 @@ class TestHelperMixin:
 # ---------------------------------------------------------------------------
 #  Model tests
 # ---------------------------------------------------------------------------
+
 
 class UserProfileModelTest(TestHelperMixin, TestCase):
     """Tests for the UserProfile model."""
@@ -132,6 +145,16 @@ class SlotPricingModelTest(TestHelperMixin, TestCase):
         SlotPricing.objects.create(slot_number=3, price=Decimal("12.34"))
         self.assertEqual(SlotPricing.get_price(3), Decimal("12.34"))
 
+    def test_rejects_infinite_price(self):
+        sp = SlotPricing(slot_number=4, price=Decimal("Infinity"))
+        with self.assertRaises(ValidationError):
+            sp.full_clean()
+
+    def test_rejects_nan_price(self):
+        sp = SlotPricing(slot_number=4, price=Decimal("NaN"))
+        with self.assertRaises(ValidationError):
+            sp.full_clean()
+
     def test_unique_slot_number(self):
         SlotPricing.objects.create(slot_number=0, price=Decimal("10.00"))
         with self.assertRaises(IntegrityError):
@@ -187,12 +210,16 @@ class BookingModelTest(TestHelperMixin, TestCase):
 
     def test_is_past_for_past_booking(self):
         user = self.create_user()
-        booking = self.create_booking(user, booking_date=date.today() - timedelta(days=1))
+        booking = self.create_booking(
+            user, booking_date=date.today() - timedelta(days=1)
+        )
         self.assertTrue(booking.is_past)
 
     def test_is_past_for_future_booking(self):
         user = self.create_user()
-        booking = self.create_booking(user, booking_date=date.today() + timedelta(days=7))
+        booking = self.create_booking(
+            user, booking_date=date.today() + timedelta(days=7)
+        )
         self.assertFalse(booking.is_past)
 
     def test_can_cancel_future_booking(self):
@@ -290,6 +317,7 @@ class BookingModelTest(TestHelperMixin, TestCase):
 #  Form tests
 # ---------------------------------------------------------------------------
 
+
 class SignUpFormTest(TestHelperMixin, TestCase):
     """Tests for the SignUpForm."""
 
@@ -318,25 +346,38 @@ class SignUpFormTest(TestHelperMixin, TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("apartment_number", form.errors)
 
+    def test_apartment_number_too_long_rejected(self):
+        form = SignUpForm(data=self.get_valid_data(apartment_number="A" * 21))
+        self.assertFalse(form.is_valid())
+        self.assertIn("apartment_number", form.errors)
+
+    def test_apartment_number_max_length_accepted(self):
+        form = SignUpForm(data=self.get_valid_data(apartment_number="A" * 20))
+        self.assertTrue(form.is_valid())
+
     def test_chinese_name_and_apartment(self):
-        form = SignUpForm(data=self.get_valid_data(
-            username="zhangsan",
-            first_name="三",
-            last_name="张",
-            apartment_number="公寓B栋202",
-        ))
+        form = SignUpForm(
+            data=self.get_valid_data(
+                username="zhangsan",
+                first_name="三",
+                last_name="张",
+                apartment_number="公寓B栋202",
+            )
+        )
         self.assertTrue(form.is_valid())
         user = form.save()
         self.assertEqual(user.first_name, "三")
         self.assertEqual(user.profile.apartment_number, "公寓B栋202")
 
     def test_arabic_name_and_apartment(self):
-        form = SignUpForm(data=self.get_valid_data(
-            username="arabuser",
-            first_name="أحمد",
-            last_name="محمد",
-            apartment_number="شقة ١٢",
-        ))
+        form = SignUpForm(
+            data=self.get_valid_data(
+                username="arabuser",
+                first_name="أحمد",
+                last_name="محمد",
+                apartment_number="شقة ١٢",
+            )
+        )
         self.assertTrue(form.is_valid())
         user = form.save()
         self.assertEqual(user.first_name, "أحمد")
@@ -446,6 +487,7 @@ class BookingFormTest(TestHelperMixin, TestCase):
 #  View tests
 # ---------------------------------------------------------------------------
 
+
 class HomeViewTest(TestCase):
     def test_home_page_loads(self):
         response = self.client.get(reverse("kerhohuone:home"))
@@ -464,45 +506,54 @@ class SignUpViewTest(TestHelperMixin, TestCase):
         self.assertContains(response, "Create Account")
 
     def test_signup_creates_user(self):
-        response = self.client.post(reverse("kerhohuone:signup"), {
-            "username": "newbie",
-            "first_name": "Test",
-            "last_name": "New",
-            "email": "n@test.com",
-            "apartment_number": "D9",
-            "password1": "MyStr0ngPwd!",
-            "password2": "MyStr0ngPwd!",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:signup"),
+            {
+                "username": "newbie",
+                "first_name": "Test",
+                "last_name": "New",
+                "email": "n@test.com",
+                "apartment_number": "D9",
+                "password1": "MyStr0ngPwd!",
+                "password2": "MyStr0ngPwd!",
+            },
+        )
         self.assertEqual(response.status_code, 302)  # Redirect after success
         self.assertTrue(User.objects.filter(username="newbie").exists())
         user = User.objects.get(username="newbie")
         self.assertEqual(user.profile.apartment_number, "D9")
 
     def test_signup_with_chinese_data(self):
-        response = self.client.post(reverse("kerhohuone:signup"), {
-            "username": "chinese_user",
-            "first_name": "明",
-            "last_name": "李",
-            "email": "li@test.com",
-            "apartment_number": "公寓101",
-            "password1": "MyStr0ngPwd!",
-            "password2": "MyStr0ngPwd!",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:signup"),
+            {
+                "username": "chinese_user",
+                "first_name": "明",
+                "last_name": "李",
+                "email": "li@test.com",
+                "apartment_number": "公寓101",
+                "password1": "MyStr0ngPwd!",
+                "password2": "MyStr0ngPwd!",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         user = User.objects.get(username="chinese_user")
         self.assertEqual(user.first_name, "明")
         self.assertEqual(user.profile.apartment_number, "公寓101")
 
     def test_signup_with_arabic_data(self):
-        response = self.client.post(reverse("kerhohuone:signup"), {
-            "username": "arabic_user",
-            "first_name": "فاطمة",
-            "last_name": "علي",
-            "email": "ali@test.com",
-            "apartment_number": "شقة ٧",
-            "password1": "MyStr0ngPwd!",
-            "password2": "MyStr0ngPwd!",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:signup"),
+            {
+                "username": "arabic_user",
+                "first_name": "فاطمة",
+                "last_name": "علي",
+                "email": "ali@test.com",
+                "apartment_number": "شقة ٧",
+                "password1": "MyStr0ngPwd!",
+                "password2": "MyStr0ngPwd!",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         user = User.objects.get(username="arabic_user")
         self.assertEqual(user.first_name, "فاطمة")
@@ -515,17 +566,23 @@ class LoginViewTest(TestHelperMixin, TestCase):
 
     def test_valid_login(self):
         self.create_user(username="logintest", password="Str0ng!Pass99")
-        response = self.client.post(reverse("kerhohuone:login"), {
-            "username": "logintest",
-            "password": "Str0ng!Pass99",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:login"),
+            {
+                "username": "logintest",
+                "password": "Str0ng!Pass99",
+            },
+        )
         self.assertEqual(response.status_code, 302)
 
     def test_invalid_login(self):
-        response = self.client.post(reverse("kerhohuone:login"), {
-            "username": "nope",
-            "password": "wrong",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:login"),
+            {
+                "username": "nope",
+                "password": "wrong",
+            },
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Invalid")
 
@@ -584,22 +641,28 @@ class BookingCreateViewTest(TestHelperMixin, TestCase):
         self.assertContains(response, "Book the Clubhouse")
 
     def test_create_slot_booking(self):
-        response = self.client.post(reverse("kerhohuone:book"), {
-            "date": self.future_date.isoformat(),
-            "booking_type": "slot",
-            "slot_number": "0",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:book"),
+            {
+                "date": self.future_date.isoformat(),
+                "booking_type": "slot",
+                "slot_number": "0",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
             Booking.objects.filter(user=self.user, date=self.future_date).exists()
         )
 
     def test_create_full_day_booking(self):
-        response = self.client.post(reverse("kerhohuone:book"), {
-            "date": self.future_date.isoformat(),
-            "booking_type": "full_day",
-            "slot_number": "",
-        })
+        response = self.client.post(
+            reverse("kerhohuone:book"),
+            {
+                "date": self.future_date.isoformat(),
+                "booking_type": "full_day",
+                "slot_number": "",
+            },
+        )
         self.assertEqual(response.status_code, 302)
         booking = Booking.objects.get(user=self.user, date=self.future_date)
         self.assertEqual(booking.booking_type, "full_day")
@@ -630,7 +693,7 @@ class BookingDetailViewTest(TestHelperMixin, TestCase):
         self.assertContains(response, "Booking Details")
 
     def test_other_user_cannot_view(self):
-        other = self.create_user(username="other", email="o@test.com")
+        self.create_user(username="other", email="o@test.com")
         self.client.logout()
         self.client.login(username="other", password="Str0ng!Pass99")
         response = self.client.get(
@@ -639,9 +702,7 @@ class BookingDetailViewTest(TestHelperMixin, TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_staff_can_view_any_booking(self):
-        staff = self.create_user(
-            username="staff", email="s@test.com", is_staff=True
-        )
+        self.create_user(username="staff", email="s@test.com", is_staff=True)
         self.client.logout()
         self.client.login(username="staff", password="Str0ng!Pass99")
         response = self.client.get(
@@ -670,9 +731,7 @@ class BookingCancelViewTest(TestHelperMixin, TestCase):
         booking = self.create_booking(
             self.user, booking_date=date.today() - timedelta(days=1)
         )
-        response = self.client.post(
-            reverse("kerhohuone:booking_cancel", args=[booking.pk])
-        )
+        self.client.post(reverse("kerhohuone:booking_cancel", args=[booking.pk]))
         booking.refresh_from_db()
         self.assertFalse(booking.is_cancelled)
 
@@ -710,6 +769,7 @@ class MyBookingsViewTest(TestHelperMixin, TestCase):
 # ---------------------------------------------------------------------------
 #  Edge case / integration tests
 # ---------------------------------------------------------------------------
+
 
 class EdgeCaseTest(TestHelperMixin, TestCase):
     """Test edge cases including extreme values."""
@@ -791,7 +851,7 @@ class AdminAccessTest(TestHelperMixin, TestCase):
     def test_admin_can_see_all_bookings(self):
         """Staff user can view any booking via detail view."""
         user = self.create_user(username="regular")
-        staff = self.create_user(username="admin_user", email="a@test.com", is_staff=True)
+        self.create_user(username="admin_user", email="a@test.com", is_staff=True)
         booking = self.create_booking(user)
         self.client.login(username="admin_user", password="Str0ng!Pass99")
         response = self.client.get(
@@ -800,7 +860,9 @@ class AdminAccessTest(TestHelperMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_admin_site_accessible(self):
-        staff = self.create_user(username="admin_user", email="a@test.com", is_staff=True)
+        staff = self.create_user(
+            username="admin_user", email="a@test.com", is_staff=True
+        )
         staff.is_superuser = True
         staff.save()
         self.client.login(username="admin_user", password="Str0ng!Pass99")

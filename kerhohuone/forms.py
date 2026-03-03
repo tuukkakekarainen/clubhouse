@@ -14,7 +14,6 @@ from .models import (
     BOOKING_TYPE_CHOICES,
     MAX_ACTIVE_BOOKINGS_PER_USER,
     SLOT_CHOICES,
-    SLOT_COUNT,
     Booking,
     SlotPricing,
     UserProfile,
@@ -28,7 +27,9 @@ class SignUpForm(UserCreationForm):
         max_length=20,
         required=True,
         help_text="Your apartment number (e.g. A12, B3, 101).",
-        widget=forms.TextInput(attrs={"placeholder": "Apartment number", "autofocus": True}),
+        widget=forms.TextInput(
+            attrs={"placeholder": "Apartment number", "autofocus": True}
+        ),
     )
     first_name = forms.CharField(
         max_length=150,
@@ -142,12 +143,17 @@ class BookingForm(forms.Form):
 
         # Check availability
         if booking_type == "slot":
-            conflict = Booking.objects.filter(
-                date=booking_date,
-                is_cancelled=False,
-            ).filter(
-                db_models.Q(slot_number=slot_number) | db_models.Q(booking_type="full_day")
-            ).exists()
+            conflict = (
+                Booking.objects.filter(
+                    date=booking_date,
+                    is_cancelled=False,
+                )
+                .filter(
+                    db_models.Q(slot_number=slot_number)
+                    | db_models.Q(booking_type="full_day")
+                )
+                .exists()
+            )
             if conflict:
                 raise forms.ValidationError("This slot is already booked.")
         elif booking_type == "full_day":

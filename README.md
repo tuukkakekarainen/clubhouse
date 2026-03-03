@@ -116,7 +116,33 @@ Optimized for common queries:
 python manage.py test kerhohuone -v2
 ```
 
-84 tests covering models, forms, views, edge cases (Chinese/Arabic text, extreme numbers), and admin access.
+88 tests covering models, forms, views, edge cases (Chinese/Arabic text, extreme numbers, long strings, Infinity/NaN), and admin access.
+
+## Code Style (PEP 8)
+
+This project follows Python PEP 8 style conventions.
+
+Style is enforced with **Ruff** (lint + formatter). Configuration lives in `pyproject.toml`.
+
+```bash
+# Lint (PEP 8 / pycodestyle + pyflakes style checks)
+python -m ruff check .
+
+# Auto-format (Ruff formatter)
+python -m ruff format .
+```
+
+Note: docstring-style rules (pydocstyle, Ruff `D` rules) are enabled project-wide (style checks, not mandatory docstrings) and are ignored for tests and Django migrations.
+
+## Pytest HTML Report
+
+Generate a self-contained HTML report:
+
+```bash
+python -m pytest -q --html=pytest-report.html --self-contained-html
+```
+
+This creates `pytest-report.html` in the project root.
 
 ## Tech Stack
 

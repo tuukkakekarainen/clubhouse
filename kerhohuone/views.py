@@ -5,7 +5,6 @@ All views use class-based generic views following Django best practices.
 
 import calendar
 from datetime import date, timedelta
-from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import login as auth_login
@@ -13,7 +12,6 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
-from django.utils import timezone
 from django.views.generic import (
     DetailView,
     FormView,
@@ -27,7 +25,6 @@ from .models import (
     ADVANCE_BOOKING_MONTHS,
     SLOT_CHOICES,
     SLOT_COUNT,
-    SLOT_START_HOURS,
     Booking,
     SlotPricing,
 )
@@ -37,8 +34,10 @@ from .models import (
 #  Public views                                                                #
 # --------------------------------------------------------------------------- #
 
+
 class HomeView(TemplateView):
     """Landing page."""
+
     template_name = "kerhohuone/home.html"
 
 
@@ -46,8 +45,10 @@ class HomeView(TemplateView):
 #  Authentication views                                                        #
 # --------------------------------------------------------------------------- #
 
+
 class SignUpView(FormView):
     """User registration with apartment number."""
+
     template_name = "kerhohuone/signup.html"
     form_class = SignUpForm
     success_url = reverse_lazy("kerhohuone:dashboard")
@@ -61,6 +62,7 @@ class SignUpView(FormView):
 
 class LoginView(auth_views.LoginView):
     """Login view – redirects to dashboard which shows booking reminders."""
+
     template_name = "kerhohuone/login.html"
     redirect_authenticated_user = True
 
@@ -70,6 +72,7 @@ class LoginView(auth_views.LoginView):
 
 class LogoutView(auth_views.LogoutView):
     """Logout and redirect to home."""
+
     next_page = reverse_lazy("kerhohuone:home")
 
 
@@ -77,24 +80,23 @@ class LogoutView(auth_views.LogoutView):
 #  Dashboard                                                                   #
 # --------------------------------------------------------------------------- #
 
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     """
     Post-login landing page showing user's active (upcoming) bookings as
     reminders and quick links to calendar / new booking.
     """
+
     template_name = "kerhohuone/dashboard.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = date.today()
-        active_bookings = (
-            Booking.objects.filter(
-                user=self.request.user,
-                is_cancelled=False,
-                date__gte=today,
-            )
-            .order_by("date", "slot_number")
-        )
+        active_bookings = Booking.objects.filter(
+            user=self.request.user,
+            is_cancelled=False,
+            date__gte=today,
+        ).order_by("date", "slot_number")
         ctx["active_bookings"] = active_bookings
         ctx["active_count"] = active_bookings.count()
         return ctx
@@ -104,10 +106,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 #  Calendar browsing                                                           #
 # --------------------------------------------------------------------------- #
 
+
 class CalendarView(LoginRequiredMixin, TemplateView):
     """
     Monthly calendar showing slot availability and prices for each day.
     """
+
     template_name = "kerhohuone/calendar.html"
 
     def get_context_data(self, **kwargs):
@@ -164,24 +168,28 @@ class CalendarView(LoginRequiredMixin, TemplateView):
                 booked_slots = booked_map.get(d, set())
                 available_slots = []
                 for slot_num in range(SLOT_COUNT):
-                    available_slots.append({
-                        "number": slot_num,
-                        "label": dict(SLOT_CHOICES)[slot_num],
-                        "price": slot_prices[slot_num],
-                        "booked": slot_num in booked_slots or is_full_day,
-                    })
+                    available_slots.append(
+                        {
+                            "number": slot_num,
+                            "label": dict(SLOT_CHOICES)[slot_num],
+                            "price": slot_prices[slot_num],
+                            "booked": slot_num in booked_slots or is_full_day,
+                        }
+                    )
                 all_booked = is_full_day or len(booked_slots) >= SLOT_COUNT
-                week_data.append({
-                    "day": day_num,
-                    "date": d,
-                    "date_iso": d.isoformat(),
-                    "is_past": is_past,
-                    "is_beyond": is_beyond,
-                    "is_today": d == today,
-                    "slots": available_slots,
-                    "all_booked": all_booked,
-                    "is_full_day": is_full_day,
-                })
+                week_data.append(
+                    {
+                        "day": day_num,
+                        "date": d,
+                        "date_iso": d.isoformat(),
+                        "is_past": is_past,
+                        "is_beyond": is_beyond,
+                        "is_today": d == today,
+                        "slots": available_slots,
+                        "all_booked": all_booked,
+                        "is_full_day": is_full_day,
+                    }
+                )
             weeks.append(week_data)
 
         # Navigation
@@ -189,22 +197,25 @@ class CalendarView(LoginRequiredMixin, TemplateView):
         next_month = first_of_month + timedelta(days=32)
         next_month = next_month.replace(day=1)
 
-        ctx.update({
-            "year": year,
-            "month": month,
-            "month_name": calendar.month_name[month],
-            "weeks": weeks,
-            "today": today,
-            "prev_year": prev_month.year,
-            "prev_month": prev_month.month,
-            "next_year": next_month.year,
-            "next_month": next_month.month,
-            "can_go_prev": first_of_month > today.replace(day=1),
-            "can_go_next": next_month <= max_date.replace(day=1) + timedelta(days=31),
-            "slot_prices": slot_prices,
-            "slot_choices": SLOT_CHOICES,
-            "full_day_price": SlotPricing.get_full_day_price(),
-        })
+        ctx.update(
+            {
+                "year": year,
+                "month": month,
+                "month_name": calendar.month_name[month],
+                "weeks": weeks,
+                "today": today,
+                "prev_year": prev_month.year,
+                "prev_month": prev_month.month,
+                "next_year": next_month.year,
+                "next_month": next_month.month,
+                "can_go_prev": first_of_month > today.replace(day=1),
+                "can_go_next": next_month
+                <= max_date.replace(day=1) + timedelta(days=31),
+                "slot_prices": slot_prices,
+                "slot_choices": SLOT_CHOICES,
+                "full_day_price": SlotPricing.get_full_day_price(),
+            }
+        )
         return ctx
 
 
@@ -212,8 +223,10 @@ class CalendarView(LoginRequiredMixin, TemplateView):
 #  Booking CRUD                                                                #
 # --------------------------------------------------------------------------- #
 
+
 class BookingCreateView(LoginRequiredMixin, FormView):
     """Create a new booking."""
+
     template_name = "kerhohuone/book.html"
     form_class = BookingForm
 
@@ -271,6 +284,7 @@ class BookingCreateView(LoginRequiredMixin, FormView):
 
 class BookingDetailView(LoginRequiredMixin, DetailView):
     """View details of a single booking."""
+
     model = Booking
     template_name = "kerhohuone/booking_detail.html"
     context_object_name = "booking"
@@ -304,15 +318,15 @@ class BookingCancelView(LoginRequiredMixin, View):
 
 class MyBookingsView(LoginRequiredMixin, ListView):
     """List all bookings for the current user."""
+
     model = Booking
     template_name = "kerhohuone/my_bookings.html"
     context_object_name = "bookings"
     paginate_by = 20
 
     def get_queryset(self):
-        return (
-            Booking.objects.filter(user=self.request.user)
-            .order_by("-date", "slot_number")
+        return Booking.objects.filter(user=self.request.user).order_by(
+            "-date", "slot_number"
         )
 
     def get_context_data(self, **kwargs):

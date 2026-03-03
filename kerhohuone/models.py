@@ -12,7 +12,7 @@ from django.db import models
 from django.utils import timezone
 
 # --- Constants ---
-OPENING_HOUR = 7   # 7:00 AM
+OPENING_HOUR = 7  # 7:00 AM
 CLOSING_HOUR = 22  # 10:00 PM
 SLOT_DURATION_HOURS = 3
 MAX_ACTIVE_BOOKINGS_PER_USER = 4
@@ -101,11 +101,20 @@ class SlotPricing(models.Model):
     def __str__(self):
         return f"{self.get_slot_number_display()} – €{self.price}"
 
+    def clean(self):
+        super().clean()
+
+        if self.price is not None and not self.price.is_finite():
+            raise ValidationError("Price must be a finite decimal number.")
+
     @classmethod
     def get_price(cls, slot_number):
         """Return the price for a given slot, or the default."""
         try:
-            return cls.objects.get(slot_number=slot_number).price
+            price = cls.objects.get(slot_number=slot_number).price
+            if price is None or not price.is_finite():
+                return DEFAULT_SLOT_PRICE
+            return price
         except cls.DoesNotExist:
             return DEFAULT_SLOT_PRICE
 
@@ -157,7 +166,9 @@ class Booking(models.Model):
         verbose_name_plural = "Bookings"
         ordering = ["date", "slot_number"]
         indexes = [
-            models.Index(fields=["user", "is_cancelled"], name="idx_booking_user_active"),
+            models.Index(
+                fields=["user", "is_cancelled"], name="idx_booking_user_active"
+            ),
             models.Index(fields=["date"], name="idx_booking_date"),
             models.Index(fields=["date", "slot_number"], name="idx_booking_date_slot"),
             models.Index(fields=["user", "date"], name="idx_booking_user_date"),

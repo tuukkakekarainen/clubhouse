@@ -14,6 +14,7 @@ from .models import Booking, SlotPricing, UserProfile
 #  Inline for UserProfile on User admin                                        #
 # --------------------------------------------------------------------------- #
 
+
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
     can_delete = False
@@ -24,6 +25,7 @@ class UserProfileInline(admin.StackedInline):
 
 class UserAdmin(BaseUserAdmin):
     """Extend built-in User admin with the UserProfile inline."""
+
     inlines = (UserProfileInline,)
     list_display = (
         "username",
@@ -52,6 +54,7 @@ admin.site.register(User, UserAdmin)
 #  UserProfile admin                                                           #
 # --------------------------------------------------------------------------- #
 
+
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ("user", "apartment_number")
@@ -63,6 +66,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 # --------------------------------------------------------------------------- #
 #  SlotPricing admin                                                           #
 # --------------------------------------------------------------------------- #
+
 
 @admin.register(SlotPricing)
 class SlotPricingAdmin(admin.ModelAdmin):
@@ -78,6 +82,7 @@ class SlotPricingAdmin(admin.ModelAdmin):
 # --------------------------------------------------------------------------- #
 #  Booking admin                                                               #
 # --------------------------------------------------------------------------- #
+
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):

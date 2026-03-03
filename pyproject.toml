@@ -1,0 +1,40 @@
+[tool.ruff]
+# Ruff is used for PEP 8-ish linting and formatting.
+target-version = "py311"
+line-length = 88
+
+# Keep typical virtualenv and generated files out of lint/format.
+exclude = [
+  ".venv",
+  ".ruff_cache",
+  "**/__pycache__",
+]
+
+[tool.ruff.lint]
+# Enable docstring (pydocstyle) rules in addition to Ruff's defaults.
+# Ruff's default selection is: E4, E7, E9, F.
+extend-select = ["D"]
+
+# Enforce docstring *style* without requiring docstrings on every public symbol.
+ignore = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D106", # Missing docstring in public nested class
+  "D107", # Missing docstring in __init__
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests.py" = ["D"]
+"**/test_*.py" = ["D"]
+"**/tests/**" = ["D"]
+"**/migrations/**" = ["D"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
