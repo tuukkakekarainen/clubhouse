@@ -108,6 +108,31 @@ class UserProfileModelTest(TestHelperMixin, TestCase):
         user = self.create_user(username="ar_user", apartment="شقة ٤٢")
         self.assertEqual(user.profile.apartment_number, "شقة ٤٢")
 
+    def test_apartment_number_with_null_byte_round_trips(self):
+        """Apartment numbers containing a null byte should round-trip intact."""
+        apartment = "A\x00B"
+        user = self.create_user(username="nullbyte_user", apartment=apartment)
+        user.profile.refresh_from_db()
+        self.assertEqual(user.profile.apartment_number, apartment)
+
+    def test_homoglyph_apartment_numbers_are_distinct(self):
+        """Cyrillic 'а' (U+0430) and Latin 'a' (U+0061) must not be conflated."""
+        latin_a = "a1"
+        cyrillic_a = "а1"  # Cyrillic small a (U+0430)
+
+        user_latin = self.create_user(username="latin_a_user", apartment=latin_a)
+        user_cyr = self.create_user(username="cyr_a_user", apartment=cyrillic_a)
+
+        self.assertNotEqual(user_latin.profile.apartment_number, user_cyr.profile.apartment_number)
+        self.assertEqual(
+            UserProfile.objects.filter(apartment_number=latin_a).count(),
+            1,
+        )
+        self.assertEqual(
+            UserProfile.objects.filter(apartment_number=cyrillic_a).count(),
+            1,
+        )
+
     def test_profile_index_exists(self):
         """Verify the apartment_number index is defined."""
         index_names = [idx.name for idx in UserProfile._meta.indexes]
@@ -392,6 +417,97 @@ class SignUpFormTest(TestHelperMixin, TestCase):
         form = SignUpForm(data=self.get_valid_data(username="existing"))
         self.assertFalse(form.is_valid())
 
+    def test_first_name_max_length_accepted(self):
+        form = SignUpForm(data=self.get_valid_data(first_name="A" * 150))
+        self.assertTrue(form.is_valid())
+
+    def test_first_name_over_max_length_rejected(self):
+        form = SignUpForm(data=self.get_valid_data(first_name="A" * 151))
+        self.assertFalse(form.is_valid())
+        self.assertIn("first_name", form.errors)
+
+    def test_last_name_max_length_accepted(self):
+        form = SignUpForm(data=self.get_valid_data(last_name="B" * 150))
+        self.assertTrue(form.is_valid())
+
+    def test_last_name_over_max_length_rejected(self):
+        form = SignUpForm(data=self.get_valid_data(last_name="B" * 151))
+        self.assertFalse(form.is_valid())
+        self.assertIn("last_name", form.errors)
+
+    def test_more_unicode_names_and_apartments(self):
+        """Additional scripts + emoji should validate and persist."""
+        samples = [
+            ("Кириллица", "К42"),
+            ("日本語", "日本語1"),
+            ("한국어", "한국어7"),
+            ("עברית", "עברית5"),
+            ("ภาษาไทย", "ไทย3"),
+            ("Ελληνικά", "Ελ7"),
+            ("🎉🚀", "🎉🚀"),
+        ]
+        for idx, (first_name, apartment_number) in enumerate(samples):
+            with self.subTest(sample=first_name):
+                form = SignUpForm(
+                    data=self.get_valid_data(
+                        username=f"unicode_user_{idx}",
+                        first_name=first_name,
+                        last_name="Test",
+                        apartment_number=apartment_number,
+                        email=f"u{idx}@example.com",
+                    )
+                )
+                self.assertTrue(form.is_valid())
+                user = form.save()
+                self.assertEqual(user.first_name, first_name)
+                self.assertEqual(user.profile.apartment_number, apartment_number)
+
+    def test_math_symbols_in_apartment_number(self):
+        apartment = "∑∫∈ℝ→∞"
+        form = SignUpForm(
+            data=self.get_valid_data(
+                username="math_user",
+                email="math@example.com",
+                apartment_number=apartment,
+            )
+        )
+        self.assertTrue(form.is_valid())
+        user = form.save()
+        self.assertEqual(user.profile.apartment_number, apartment)
+
+    def test_special_characters_in_apartment_number(self):
+        """Null bytes, whitespace, zero-width, and RTL override should not crash."""
+        # Django's form validation prohibits null bytes in text input.
+        null_apartment = "A\x00B"
+        form = SignUpForm(
+            data=self.get_valid_data(
+                username="special_user_null",
+                email="snull@example.com",
+                apartment_number=null_apartment,
+            )
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("apartment_number", form.errors)
+
+        specials = [
+            "A\nB",
+            "A\tB",
+            "A\u200bB",  # zero-width space
+            "ABC\u202eDEF",  # RTL override
+        ]
+        for idx, apartment in enumerate(specials):
+            with self.subTest(apartment=repr(apartment)):
+                form = SignUpForm(
+                    data=self.get_valid_data(
+                        username=f"special_user_{idx}",
+                        email=f"s{idx}@example.com",
+                        apartment_number=apartment,
+                    )
+                )
+                self.assertTrue(form.is_valid())
+                user = form.save()
+                self.assertEqual(user.profile.apartment_number, apartment)
+
 
 class BookingFormTest(TestHelperMixin, TestCase):
     """Tests for the BookingForm."""
@@ -608,6 +724,41 @@ class DashboardViewTest(TestHelperMixin, TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class InjectionAndEscapingTest(TestHelperMixin, TestCase):
+    def test_dashboard_escapes_html_in_user_fields(self):
+        user = self.create_user(
+            username="xss_user",
+            password="Str0ng!Pass99",
+            first_name="<script>alert(1)</script>",
+            last_name="O'Connor" ,
+            apartment="A<script>",
+            email="xss@example.com",
+        )
+        self.client.login(username="xss_user", password="Str0ng!Pass99")
+        response = self.client.get(reverse("kerhohuone:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<script>alert(1)</script>")
+        self.assertContains(response, "&lt;script&gt;alert(1)&lt;/script&gt;")
+        self.assertNotContains(response, "A<script>")
+        self.assertContains(response, "A&lt;script&gt;")
+
+    def test_sql_injection_like_strings_are_treated_as_text(self):
+        apartment = "A'; DROP TABLE bookings;--"
+        user = self.create_user(
+            username="sqli_user",
+            password="Str0ng!Pass99",
+            first_name="Robert'); DROP TABLE Students;--",
+            last_name="Test",
+            apartment=apartment,
+            email="sqli@example.com",
+        )
+        self.client.login(username="sqli_user", password="Str0ng!Pass99")
+        response = self.client.get(reverse("kerhohuone:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        user.profile.refresh_from_db()
+        self.assertEqual(user.profile.apartment_number, apartment)
+
+
 class CalendarViewTest(TestHelperMixin, TestCase):
     def setUp(self):
         self.user = self.create_user()
@@ -765,6 +916,17 @@ class MyBookingsViewTest(TestHelperMixin, TestCase):
         response = self.client.get(reverse("kerhohuone:my_bookings"))
         self.assertNotContains(response, "other")
 
+    def test_invalid_pagination_params_return_404(self):
+        base_url = reverse("kerhohuone:my_bookings")
+        for page in [0, -1, 999, "abc"]:
+            with self.subTest(page=page):
+                response = self.client.get(base_url, {"page": page})
+                self.assertEqual(response.status_code, 404)
+
+        # Empty page param is treated as page 1 by Django's ListView.
+        response = self.client.get(base_url, {"page": ""})
+        self.assertEqual(response.status_code, 200)
+
 
 # ---------------------------------------------------------------------------
 #  Edge case / integration tests
@@ -868,3 +1030,26 @@ class AdminAccessTest(TestHelperMixin, TestCase):
         self.client.login(username="admin_user", password="Str0ng!Pass99")
         response = self.client.get("/admin/")
         self.assertEqual(response.status_code, 200)
+
+    def test_admin_search_handles_regex_like_and_unicode_queries(self):
+        staff = self.create_user(
+            username="admin_search", email="as@test.com", is_staff=True
+        )
+        staff.is_superuser = True
+        staff.save()
+        self.client.login(username="admin_search", password="Str0ng!Pass99")
+
+        queries = [
+            r".*[]\\^$",
+            "🎉🚀",
+            "Кириллица",
+            "עברית",
+            "<script>",
+        ]
+        for q in queries:
+            with self.subTest(q=q):
+                response = self.client.get(
+                    "/admin/kerhohuone/userprofile/",
+                    {"q": q},
+                )
+                self.assertEqual(response.status_code, 200)
