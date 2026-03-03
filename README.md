@@ -116,7 +116,15 @@ Optimized for common queries:
 python manage.py test kerhohuone -v2
 ```
 
-88 tests covering models, forms, views, edge cases (Chinese/Arabic text, extreme numbers, long strings, Infinity/NaN), and admin access.
+101 tests covering models, forms, views, and edge cases including:
+
+- Unicode text (Chinese/Arabic + Cyrillic/Japanese/Korean/Hebrew/Thai/Greek, emoji)
+- String boundary checks (exactly at `max_length` and 1 over)
+- Injection attempts (SQLi-like strings, HTML/XSS escaping)
+- Special characters (newlines/tabs, zero-width chars, RTL override)
+- Pagination edge params (`page=0`, `-1`, `999`, `abc`, empty)
+- Homoglyph distinction (Cyrillic `а` vs Latin `a`)
+- Math symbols (∑, ∫, ∈, ℝ, →, ∞)
 
 ## Code Style (PEP 8)
 
